@@ -1,0 +1,4 @@
+#pragma once
+
+#define TE_VERSION_MAIN ${TE_VERSION_MAIN}
+#define TE_VERSION_SUB ${TE_VERSION_SUB}
