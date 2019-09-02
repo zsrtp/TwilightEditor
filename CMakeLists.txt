@@ -1,5 +1,7 @@
 ﻿cmake_minimum_required (VERSION 3.8)
 
+set (CMAKE_CXX_STANDARD 17)
+
 project (TwilightEditor)
 
 set (TE_VERSION_MAIN 3)
@@ -26,3 +28,7 @@ list(REMOVE_DUPLICATES TE_INCLUDE_DIRS)
 
 add_executable (TwilightEditor ${TE_SOURCES})
 target_include_directories(TwilightEditor PRIVATE ${TE_INCLUDE_DIRS})
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL GNU)
+    target_link_libraries(TwilightEditor stdc++fs)
+endif()

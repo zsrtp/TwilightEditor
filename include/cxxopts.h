@@ -1293,7 +1293,7 @@ namespace cxxopts
 		Options(std::string program, std::string help_string = "")
 			: m_program(std::move(program))
 			, m_help_string(toLocalString(std::move(help_string)))
-			, m_custom_help("[OPTION...]")
+			, m_custom_help("--fix -i GZ2E01.gci --offset 0xB --length 0x1 --type int --value \"0xFF\"")
 			, m_positional_help("positional parameters")
 			, m_show_positional(false)
 			, m_allow_unrecognised(false)
@@ -2156,7 +2156,7 @@ namespace cxxopts
 		std::string
 		Options::help(const std::vector<std::string>& help_groups) const
 	{
-		String result = m_help_string + "\nUsage:\n  " +
+		String result = m_help_string + "\nExample Usage:\n  " +
 			toLocalString(m_program) + " " + toLocalString(m_custom_help);
 
 		if (m_positional.size() > 0 && m_positional_help.size() > 0) {
