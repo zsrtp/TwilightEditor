@@ -15,6 +15,7 @@ namespace TwilightEditor
 	{
 		TPINT,
 		TPFLAG,
+		TPUFLAG,
 		TPSTRING
 	};
 
@@ -26,15 +27,18 @@ namespace TwilightEditor
 		mode MODE;
 		uint16_t QUESTLOG;
 		bool FIX;
-		
+		bool HEX;
+
 		// Offset
 		uint16_t OFFSET;
 		uint16_t LENGTH;
 		offsetType TYPE;
-		std::string VALUE;
+		std::string STR_VALUE;
 
 		// Additional
 		bool VERBOSE;
 		bool FORCE;
 	};
+
+	extern settings Settings;
 }

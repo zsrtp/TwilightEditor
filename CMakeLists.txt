@@ -5,7 +5,7 @@ set (CMAKE_CXX_STANDARD 17)
 project (TwilightEditor)
 
 set (TE_VERSION_MAIN 3)
-set (TE_VERSION_SUB 0)
+set (TE_VERSION_SUB 1)
 
 configure_file (
 	"${projectDir}include/config.h.in"
@@ -14,8 +14,8 @@ configure_file (
 
 include_directories("${PROJECT_BINARY_DIR}/include")
 
-file(GLOB_RECURSE TE_SOURCES "${projectDir}source/*.cpp")
-file(GLOB_RECURSE TE_HEADERS "${projectDir}include/*.h")
+file(GLOB TE_SOURCES "${projectDir}source/*.cpp")
+file(GLOB TE_HEADERS "${projectDir}include/*.h")
 
 
 set (TE_INCLUDE_DIRS "")
@@ -30,5 +30,10 @@ add_executable (TwilightEditor ${TE_SOURCES})
 target_include_directories(TwilightEditor PRIVATE ${TE_INCLUDE_DIRS})
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL GNU)
+	add_definitions (-DOS_STRING="LINUX")
+	add_definitions (-DLINUX)
     target_link_libraries(TwilightEditor stdc++fs)
+else ()
+	add_definitions (-DOS_STRING="WIN32")
+	add_definitions (-DWIN32)
 endif()

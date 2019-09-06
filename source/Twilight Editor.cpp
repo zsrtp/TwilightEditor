@@ -1,23 +1,67 @@
 ﻿#include "Twilight Editor.h"
-#include "settings.h"
-#include "cxxopts.h"
-#include "config.h"
 
-#include <filesystem>
 
-namespace fs = std::filesystem;
-namespace TE = TwilightEditor;
-
-namespace TwilightEditor
+int main(int argc, char* argv[])
 {
-	settings Settings;
+	auto result = parse(argc, argv);
+	auto arguments = result.arguments();
+
+	if (TwilightEditor::Settings.VERBOSE)
+	{
+		std::cout << "Settings:" << std::endl;
+		std::cout << "Input File: " << TwilightEditor::Settings.INPUT_FILE << std::endl;
+		std::cout << "Output File: " << TwilightEditor::Settings.OUTPUT_FILE << std::endl;
+		std::cout << "Mode: " << TwilightEditor::Settings.MODE << std::endl;
+		std::cout << "QuestLog: " << TwilightEditor::Settings.QUESTLOG << std::endl;
+		std::cout << "Fix checksum: " << TwilightEditor::Settings.FIX << std::endl;
+
+
+		std::cout << "Offset: " << TwilightEditor::Settings.OFFSET << std::endl;
+		std::cout << "Length: " << TwilightEditor::Settings.LENGTH << std::endl;
+		std::cout << "Type: " << TwilightEditor::Settings.TYPE << std::endl;
+		std::cout << "Value: " << TwilightEditor::Settings.STR_VALUE << std::endl;
+
+		std::cout << "Verbose: " << TwilightEditor::Settings.VERBOSE << std::endl;
+		std::cout << "Force: " << TwilightEditor::Settings.FORCE << std::endl;
+	}
+
+	fastPrint("initializing file...");
+
+	TwilightEditor::initFile();
+
+	switch (TwilightEditor::Settings.MODE)
+	{
+		case TwilightEditor::mode::GET:
+			fastPrint("> GET");
+
+			std::cout << TwilightEditor::get() << std::endl;
+		break;
+
+		case TwilightEditor::mode::SET:
+			fastPrint("> SET");
+
+		break;
+	}
+
+	fastPrint("Closing file...");
+	fclose(TwilightEditor::currentFilePtr);
+	return 0;
+}
+
+void fastPrint(const std::string& message, bool newline)
+{
+	if (TwilightEditor::Settings.VERBOSE)
+	{
+		std::cout << message;
+		if (newline) std::cout << std::endl;
+	}
 }
 
 cxxopts::ParseResult parse(int argc, char* argv[])
 {
 	try
 	{
-		cxxopts::Options options(argv[0], "Twilight Editor | (C) @theAECX | *required");
+		cxxopts::Options options(argv[0], "Twilight Editor | (C) AECX 2019 | *required");
 
 		options.add_options("General")
 			("h,help", " Prints this help")
@@ -25,16 +69,18 @@ cxxopts::ParseResult parse(int argc, char* argv[])
 			("m,mode", " (string) <GET> or <SET>", cxxopts::value<std::string>()->default_value("GET"), "<GET|SET>")
 			("o,output", " (string) If empty: Override input file", cxxopts::value<std::string>(), "<path/to/file>")
 			("q,questlog", " (int) QuestLog Index (0 based)", cxxopts::value<std::uint16_t>()->default_value("0"), "<n>")
-			("fix", " (bool) Correct checksum?", cxxopts::value<bool>()->default_value("false"));
+			("fix", " (bool) Correct checksum?", cxxopts::value<bool>()->default_value("false"))
+			("hex", " (bool) Output in Hexadecimal format?", cxxopts::value<bool>()->default_value("false"));
 
 		options.add_options("Offset")
 			("offset", "*(hex/dec) Hexadecimal QuestLog offset", cxxopts::value<uint16_t>(), "<0x000>")
 			("length", "*(hex/dec) Hexadecimal Length", cxxopts::value<uint16_t>(), "<0x00>")
-			("type", "*(string) Value type/interpretation", cxxopts::value<std::string>(), "<int|flg|str>")
-			("value", "*(string) The value you want to apply", cxxopts::value<std::string>(), "<\"Link\">");
+			("type", "*(string) Value type/interpretation", cxxopts::value<std::string>(), "<int|flg|uflg|str>")
+			("value", "(string) The value you want to apply", cxxopts::value<std::string>()->default_value("0"), "<\"Link\">");
 
 		options.add_options("Additional")
-			("v,verbose", " Print additional output information", cxxopts::value<bool>()->default_value("false"))
+			("v,version", " Display current version information")
+			("verbose", " Print additional output information", cxxopts::value<bool>()->default_value("false"))
 			("f,force", " Don't ask for file overrides", cxxopts::value<bool>()->default_value("false"));
 
 		auto result = options.parse(argc, argv);
@@ -45,39 +91,51 @@ cxxopts::ParseResult parse(int argc, char* argv[])
 			exit(0);
 		}
 
+		if (result.count("version"))
+		{
+			std::cout << "Twilight Editor (" << OS_STRING << ") v" << TE_VERSION_MAIN << "." << TE_VERSION_SUB << " (C) AECX 2019" << std::endl;
+			std::cout << "https://editor.tpspeed.run | https://aecx.cc | https://twitter.com/theAECX" << std::endl;
+			exit(0);
+		}
+
 		// Set values to global settings struct
 		if (result.count("input"))
 		{
-			TE::Settings.INPUT_FILE = result["input"].as<std::string>();
+			TwilightEditor::Settings.INPUT_FILE = result["input"].as<std::string>();
 		}
 		else
 		{
 			throw cxxopts::OptionException("Missing parameter --input");
 		}
 
-		TE::Settings.MODE = (result["mode"].as<std::string>() == "GET" ? TE::mode::GET : TE::mode::SET);
+		TwilightEditor::Settings.MODE = (result["mode"].as<std::string>() == "GET" ? TwilightEditor::mode::GET : TwilightEditor::mode::SET);
 
 		if (result.count("output"))
 		{
-			TE::Settings.OUTPUT_FILE = result["output"].as<std::string>();
+			TwilightEditor::Settings.OUTPUT_FILE = result["output"].as<std::string>();
 		}
 		else
 		{
 			// Overwrite original
-			TE::Settings.OUTPUT_FILE = TE::Settings.INPUT_FILE;
+			TwilightEditor::Settings.OUTPUT_FILE = TwilightEditor::Settings.INPUT_FILE;
 		}
 
-		TE::Settings.QUESTLOG = result["questlog"].as<std::uint16_t>();
-		if (TE::Settings.QUESTLOG > 2)
+		TwilightEditor::Settings.QUESTLOG = result["questlog"].as<std::uint16_t>();
+		if (TwilightEditor::Settings.QUESTLOG > 2)
 		{
 			throw cxxopts::OptionException("Invalid QuestLog Index");
 		}
 
-		TE::Settings.FIX = result["fix"].as<bool>();
+		if (result.count("hex"))
+		{
+			TwilightEditor::Settings.HEX = result["hex"].as<bool>();
+		}
+
+		TwilightEditor::Settings.FIX = result["fix"].as<bool>();
 
 		if (result.count("offset"))
 		{
-			TE::Settings.OFFSET = result["offset"].as<uint16_t>();
+			TwilightEditor::Settings.OFFSET = result["offset"].as<uint16_t>();
 		}
 		else
 		{
@@ -86,32 +144,30 @@ cxxopts::ParseResult parse(int argc, char* argv[])
 
 		if (result.count("length"))
 		{
-			TE::Settings.LENGTH = result["length"].as<uint16_t>();
+			TwilightEditor::Settings.LENGTH = result["length"].as<uint16_t>();
 		}
 		else
 		{
 			throw cxxopts::OptionException("Missing parameter --length");
 		}
 
+		// --type
 		if (result.count("type"))
 		{
-			TE::Settings.TYPE = (result["type"].as<std::string>() == "int" ? TE::offsetType::TPINT : result["type"].as<std::string>() == "flg" ? TE::offsetType::TPFLAG : TE::offsetType::TPSTRING);
+			TwilightEditor::Settings.TYPE = (result["type"].as<std::string>() == "int" ? TwilightEditor::offsetType::TPINT : result["type"].as<std::string>() == "flg" ? TwilightEditor::offsetType::TPFLAG : result["type"].as<std::string>() == "uflg" ? TwilightEditor::offsetType::TPUFLAG : TwilightEditor::offsetType::TPSTRING);
 		}
 
+		// --value
 		if (result.count("value"))
 		{
-			TE::Settings.VALUE = result["value"].as<std::string>();
-		}
-		else
-		{
-			throw cxxopts::OptionException("Missing parameter --value");
+			TwilightEditor::Settings.STR_VALUE = result["value"].as<std::string>();
 		}
 
 		// -v,	--verbose
-		TE::Settings.VERBOSE = result["verbose"].as<bool>();
+		TwilightEditor::Settings.VERBOSE = result["verbose"].as<bool>();
 
 		// -f,	--force
-		TE::Settings.FORCE = result["force"].as<bool>();
+		TwilightEditor::Settings.FORCE = result["force"].as<bool>();
 
 		return result;
 	}
@@ -122,28 +178,93 @@ cxxopts::ParseResult parse(int argc, char* argv[])
 	}
 }
 
-int main(int argc, char* argv[])
+namespace TwilightEditor
 {
-	auto result = parse(argc, argv);
-	auto arguments = result.arguments();
+	FILE* currentFilePtr = NULL;
+	std::size_t fileSize = 0;
 
-	std::cout << "Results:" << std::endl;
-	std::cout << "Input File: " << TE::Settings.INPUT_FILE << std::endl;
-	std::cout << "Output File: " << TE::Settings.OUTPUT_FILE << std::endl;
-	std::cout << "Mode: " << TE::Settings.MODE << std::endl;
-	std::cout << "QuestLog: " << TE::Settings.QUESTLOG << std::endl;
-	std::cout << "Fix checksum: " << TE::Settings.FIX << std::endl;
+	std::string get()
+	{
+		try
+		{
+			if (Settings.OFFSET + Settings.LENGTH > fileSize)
+			{
+				throw std::runtime_error("offset + length exceeds the filesize");
+			}
 
+			uint8_t* buffer = new uint8_t[Settings.LENGTH];
+			fseek(currentFilePtr, Settings.OFFSET, SEEK_SET);
+			fread(buffer, sizeof(uint8_t), Settings.LENGTH, currentFilePtr);
 
-	std::cout << "Offset: " << TE::Settings.OFFSET << std::endl;
-	std::cout << "Length: " << TE::Settings.LENGTH << std::endl;
-	std::cout << "Type: " << TE::Settings.TYPE << std::endl;
-	std::cout << "Value: " << TE::Settings.VALUE << std::endl;
+			return TwilightEditor::Converter::toStr(buffer, Settings.TYPE, Settings.LENGTH, Converter::u8(Settings.STR_VALUE));
+		}
+		catch (const std::runtime_error& ex)
+		{
+			std::cerr << "error getting from file: " << ex.what() << std::endl;
+			exit(1);
+		}
+		catch (...)
+		{
+			std::cerr << "unknown error while getting from file" << std::endl;
+			exit(1);
+		}
+	}
 
-	std::cout << "Verbose: " << TE::Settings.VERBOSE << std::endl;
-	std::cout << "Force: " << TE::Settings.FORCE << std::endl;
+	void initFile()
+	{
+		try
+		{
+			if (!fs::exists(Settings.INPUT_FILE))
+			{
+				throw std::runtime_error("file does not exist");
+			}
 
-	getchar();
+			fastPrint("Opening file for reading...");
+			currentFilePtr = fopen(Settings.INPUT_FILE.c_str(), "r");
+			fs::path filePath{ Settings.INPUT_FILE };
 
-	return 0;
+			if (currentFilePtr == NULL)
+			{
+				throw std::runtime_error("file does not exist or is invalid");
+			}
+
+			fileSize = static_cast<std::size_t>(fs::file_size(filePath));
+			
+			switch (fileSize)
+			{
+				case 0x8040:
+					// GCI/Container
+					fastPrint("Operating in GCI mode");
+				break;
+
+				case 0xE00:
+					// WiiU/QuestLog
+					fastPrint("Operating in Wii U mode");
+				break;
+
+				default:
+					if (!Settings.FORCE)
+					{
+						std::cout << "File could not be identified, do you want to treat it as a single QuestLog? (y/n)" << std::endl << "Is this a Questlog? ";
+						int result = getchar();
+						if (result != 'Y' && result != 'y')
+						{
+							std::cout << "Exiting application..." << std::endl;
+							exit(1);
+						}
+					}
+				break;
+			}
+		}
+		catch (const std::runtime_error& ex)
+		{
+			std::cerr << "error opening file " << Settings.INPUT_FILE  << ": " << ex.what() << std::endl;
+			exit(1);
+		}
+		catch (...)
+		{
+			std::cerr << "unknown error opening file " << Settings.INPUT_FILE << std::endl;
+			exit(1);
+		}
+	}
 }
