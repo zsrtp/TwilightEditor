@@ -19,7 +19,10 @@ namespace TwilightEditor
 {
 	extern FILE* currentFilePtr;
 	extern std::size_t fileSize;
+	extern uint16_t questLogSize;
+	extern uint32_t questLogReadOffset;
 	
 	void initFile();
+	void set();
 	std::string get();
 }
