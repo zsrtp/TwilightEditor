@@ -29,6 +29,9 @@ int main(int argc, char* argv[])
 
 	TwilightEditor::initFile();
 
+	TwilightEditor::getChecksums();
+	return 0;
+
 	switch (TwilightEditor::Settings.MODE)
 	{
 		case TwilightEditor::mode::GET:
@@ -44,8 +47,9 @@ int main(int argc, char* argv[])
 		break;
 	}
 
-	fastPrint("Closing file...");
+	fastPrint("Closing file(s)...");
 	fclose(TwilightEditor::currentFilePtr);
+	fclose(TwilightEditor::outputFile);
 	return 0;
 }
 
@@ -82,7 +86,7 @@ cxxopts::ParseResult parse(int argc, char* argv[])
 		options.add_options("Additional")
 			("v,version", " Display current version information")
 			("verbose", " Print additional output information", cxxopts::value<bool>()->default_value("false"))
-			("f,force", " Don't ask for file overrides", cxxopts::value<bool>()->default_value("false"));
+			("f,force", " Interpret file as raw questlog", cxxopts::value<bool>()->default_value("false"));
 
 		auto result = options.parse(argc, argv);
 
@@ -186,7 +190,12 @@ cxxopts::ParseResult parse(int argc, char* argv[])
 
 namespace TwilightEditor
 {
-	FILE* currentFilePtr = NULL;
+	uint32_t checksum = 0;
+	uint32_t nchecksum = 0;
+
+	FILE* currentFilePtr = nullptr;
+	FILE* outputFile = nullptr;
+
 	std::size_t fileSize = 0;
 	uint16_t questLogSize = 0;
 	uint32_t questLogReadOffset = 0;
@@ -229,36 +238,14 @@ namespace TwilightEditor
 		{
 			// write --value to --offset[--length]
 			// Save into --output
-
-			if (fs::exists(Settings.OUTPUT_FILE))
-			{
-				if (!Settings.FORCE && Settings.INPUT_FILE != Settings.OUTPUT_FILE)
-				{
-					std::cout << "Output file already exists, do you want to override it? (y/n)" << std::endl << "Override? ";
-					int result = getchar();
-
-					if (result != 'Y' && result != 'y')
-					{
-						std::cout << "Exiting application..." << std::endl;
-						exit(1);
-					}
-				}
-			}
-
-			FILE* outputFile = fopen(Settings.OUTPUT_FILE.c_str(), "wb");
-
-			if (outputFile == NULL)
-			{
-				throw std::runtime_error("couldn't create output file");
-			}
-
+			
 			// Templates
 			uint16_t t16 = 0;
 			uint32_t t32 = 0;
 
 			// buffer for str
 			char* data = new char[Settings.LENGTH];
-			memset(data, NULL, Settings.LENGTH);
+			memset(data, 0, Settings.LENGTH);
 
 			// buffer for single char
 			unsigned* buffer = new unsigned[1];
@@ -284,18 +271,13 @@ namespace TwilightEditor
 							break;
 
 							case 2:
-								t16 = Converter::u16(Settings.STR_VALUE);
-								t16 = ((t16 & 0x00FF) << 8 | (t16 & 0xFF00) >> 8);
-								
+								t16 = Converter::bigEndian(Converter::u16(Settings.STR_VALUE));
+
 								fwrite(&t16, sizeof(uint16_t), 1, outputFile);
 							break;
 
 							case 4:
-								t32 = Converter::u32(Settings.STR_VALUE);
-								t32 = ((t32 & 0xFF000000) >> 24 |
-									  (t32 & 0x000000FF) << 24 |
-									  (t32 & 0x00FF0000) >> 8 |
-									  (t32 & 0x0000FF00) << 8);
+								t32 = Converter::bigEndian(Converter::u32(Settings.STR_VALUE));
 
 								fwrite(&t32, sizeof(uint32_t), 1, outputFile);
 							break;
@@ -341,8 +323,6 @@ namespace TwilightEditor
 					fwrite(reinterpret_cast<void*>(buffer), sizeof(char), 1, outputFile);
 				}
 			}
-
-			fclose(outputFile);
 		}
 		catch (const std::runtime_error& ex)
 		{
@@ -362,16 +342,27 @@ namespace TwilightEditor
 		{
 			if (!fs::exists(Settings.INPUT_FILE))
 			{
-				throw std::runtime_error("file does not exist");
+				throw std::runtime_error("input file does not exist");
 			}
 
-			fastPrint("Opening file for reading...");
-			currentFilePtr = fopen(Settings.INPUT_FILE.c_str(), "r");
+			if (Settings.INPUT_FILE == Settings.OUTPUT_FILE)
+			{
+				throw std::runtime_error("currently unsupported. Please enter an output file");
+			}
+
 			fs::path filePath{ Settings.INPUT_FILE };
+
+			currentFilePtr = fopen(Settings.INPUT_FILE.c_str(), "rb");
+			outputFile = fopen(Settings.OUTPUT_FILE.c_str(), "wb");
 
 			if (currentFilePtr == NULL)
 			{
-				throw std::runtime_error("file does not exist or is invalid");
+				throw std::runtime_error("couldn't open input file for read");
+			}
+
+			if (outputFile == NULL)
+			{
+				throw std::runtime_error("couldn't open output file for write");
 			}
 
 			fileSize = static_cast<std::size_t>(fs::file_size(filePath));
@@ -429,6 +420,34 @@ namespace TwilightEditor
 		catch (...)
 		{
 			std::cerr << "unknown error opening file " << Settings.INPUT_FILE << std::endl;
+			exit(1);
+		}
+	}
+
+	void getChecksums()
+	{
+		try
+		{
+			uint16_t questLogDataLength = questLogSize - 8;
+
+			uint8_t* questLogData = new uint8_t[questLogDataLength];
+
+			printf("read: %x\n", questLogReadOffset);
+			printf("len: %x\n", questLogDataLength);
+			
+			// Set read position to current questlog
+			fseek(currentFilePtr, questLogReadOffset, SEEK_SET);
+
+			// Read the entire questlog (- checksums)
+			fread(questLogData, sizeof(uint8_t), questLogDataLength, currentFilePtr);
+
+			checkSum(questLogData, questLogDataLength, &checksum, &nchecksum);
+
+			printf("Calculated: %08x %08x\n", checksum, nchecksum);
+		}
+		catch (...)
+		{
+			std::cerr << "unknown error calculating checksums" << std::endl;
 			exit(1);
 		}
 	}

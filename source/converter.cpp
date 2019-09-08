@@ -73,6 +73,32 @@ namespace TwilightEditor
 			}
 		}
 
+		uint32_t bigEndian(uint32_t value)
+		{
+			try
+			{
+				return ((value & 0xFF000000) >> 24 | (value & 0x000000FF) << 24 | (value & 0x00FF0000) >> 8 | (value & 0x0000FF00) << 8);
+			}
+			catch (...)
+			{
+				std::cerr << "unknown error while converting little u32 to big u32" << value << std::endl;
+				exit(1);
+			}
+		}
+
+		uint16_t bigEndian(uint16_t value)
+		{
+			try
+			{
+				return ((value & 0x00FF) << 8 | (value & 0xFF00) >> 8);
+			}
+			catch (...)
+			{
+				std::cerr << "unknown error while converting little u16 to big u16" << value << std::endl;
+				exit(1);
+			}
+		}
+
 		void flag(uint8_t* value, std::string& flag, bool set)
 		{
 			try

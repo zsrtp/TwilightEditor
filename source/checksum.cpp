@@ -7,21 +7,18 @@ namespace TwilightEditor
 	{
 		try
 		{
-			uint32_t sum = 0;
-			uint32_t _sum = 0;
+			*csum = 0;
+			*nsum = 0;
 
 			for (uint32_t i = 0; i < length; i++)
 			{
-				sum += data[i];
+				*csum += data[i];
 			}
-			_sum = -(sum + 0x0a8c);
-
-			*csum = sum;
-			*nsum = _sum;
+			*nsum = -(*csum + length);
 		}
 		catch (...)
 		{
-			std::cout << "Fatal error during checksum calculation..." << std::endl;
+			std::cout << "fatal error during checksum calculation..." << std::endl;
 			exit(1);
 		}
 	}
