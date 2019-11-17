@@ -2,5 +2,5 @@
 
 namespace TwilightEditor
 {
-	settings Settings = { "", "", GET, 0, false, false, 0, 0, TPINT, "0",  false, false };
+	settings Settings = { "", "", GET, 0, false, false, 0, 0, TPUINT, "0",  false, false };
 }

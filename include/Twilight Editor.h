@@ -8,9 +8,6 @@
 
 #include <iostream>
 #include <fstream>
-#include <filesystem>
-
-namespace fs = std::filesystem;
 
 int main(int argc, char* argv[]);
 void fastPrint(const std::string& message, bool newline = true);
@@ -24,12 +21,19 @@ namespace TwilightEditor
 	extern FILE* currentFilePtr;
 	extern FILE* outputFile;
 
-	extern std::size_t fileSize;
-	extern uint16_t questLogSize;
+	extern uint8_t* questLogData;
+
+	extern uint8_t* inputFileBuf;
+	extern uint8_t* outputFileBuf;
+
+	extern uintmax_t fileSize;
+	extern uint16_t questLogLength;
 	extern uint32_t questLogReadOffset;
 	
 	void initFile();
+	void saveFile();
 	void set();
-	void getChecksums();
+	void readChecksums();
+	void setChecksums();
 	std::string get();
 }

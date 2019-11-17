@@ -13,7 +13,8 @@ namespace TwilightEditor
 
 	enum offsetType
 	{
-		TPINT,
+		TPUINT,
+		TPSINT,
 		TPFLAG,
 		TPUFLAG,
 		TPSTRING

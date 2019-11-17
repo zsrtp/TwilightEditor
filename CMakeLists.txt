@@ -6,7 +6,7 @@ set (CMAKE_CXX_STANDARD 17)
 project (TwilightEditor)
 
 set (TE_VERSION_MAIN 3)
-set (TE_VERSION_SUB 1)
+set (TE_VERSION_SUB 2)
 
 configure_file (
 	"${projectDir}include/config.h.in"

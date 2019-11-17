@@ -13,7 +13,6 @@ int main(int argc, char* argv[])
 		std::cout << "Output File: " << TwilightEditor::Settings.OUTPUT_FILE << std::endl;
 		std::cout << "Mode: " << TwilightEditor::Settings.MODE << std::endl;
 		std::cout << "QuestLog: " << TwilightEditor::Settings.QUESTLOG << std::endl;
-		std::cout << "Fix checksum: " << TwilightEditor::Settings.FIX << std::endl;
 
 
 		std::cout << "Offset: " << TwilightEditor::Settings.OFFSET << std::endl;
@@ -25,31 +24,36 @@ int main(int argc, char* argv[])
 		std::cout << "Force: " << TwilightEditor::Settings.FORCE << std::endl;
 	}
 
+	/*
+	TwilightEditor::Settings.INPUT_FILE = "ql.tp";
+	TwilightEditor::Settings.OUTPUT_FILE = "new.tp";
+	TwilightEditor::Settings.FORCE = true;
+	TwilightEditor::Settings.LENGTH = 4;
+	TwilightEditor::Settings.OFFSET = 0x0A;
+	TwilightEditor::Settings.TYPE = TwilightEditor::offsetType::TPUINT;*/
+
 	fastPrint("initializing file...");
 
 	TwilightEditor::initFile();
 
-	TwilightEditor::getChecksums();
-	return 0;
-
+	TwilightEditor::readChecksums();
+	
 	switch (TwilightEditor::Settings.MODE)
 	{
 		case TwilightEditor::mode::GET:
 			fastPrint("> GET");
 
-			std::cout << TwilightEditor::get() << std::endl;
+			std::cout << "== BEGIN RESULT ==" << std::endl << TwilightEditor::get() << std::endl << "== END RESULT == "<< std::endl;
 		break;
 
 		case TwilightEditor::mode::SET:
 			fastPrint("> SET");
-
 			TwilightEditor::set();
+			TwilightEditor::setChecksums();
+			TwilightEditor::saveFile();
 		break;
 	}
 
-	fastPrint("Closing file(s)...");
-	fclose(TwilightEditor::currentFilePtr);
-	fclose(TwilightEditor::outputFile);
 	return 0;
 }
 
@@ -74,13 +78,12 @@ cxxopts::ParseResult parse(int argc, char* argv[])
 			("m,mode", " (string) <GET> or <SET>", cxxopts::value<std::string>()->default_value("GET"), "<GET|SET>")
 			("o,output", " (string) If empty: Override input file", cxxopts::value<std::string>(), "<path/to/file>")
 			("q,questlog", " (int) QuestLog Index (0 based)", cxxopts::value<std::uint16_t>()->default_value("0"), "<n>")
-			("fix", " (bool) Correct checksum?", cxxopts::value<bool>()->default_value("false"))
 			("hex", " (bool) Output in Hexadecimal format?", cxxopts::value<bool>()->default_value("false"));
 
 		options.add_options("Offset")
 			("offset", "*(hex/dec) QuestLog offset", cxxopts::value<uint16_t>(), "<0x000>")
 			("length", "*(hex/dec) Length", cxxopts::value<uint16_t>(), "<0x00>")
-			("type", "*(string) Value type/interpretation", cxxopts::value<std::string>(), "<int|flg|uflg|str>")
+			("type", "*(string) Value type/interpretation", cxxopts::value<std::string>(), "<uint|sint|flg|uflg|str>")
 			("value", "(string) The value you want to apply", cxxopts::value<std::string>()->default_value("0"), "<\"Link\">");
 
 		options.add_options("Additional")
@@ -90,12 +93,14 @@ cxxopts::ParseResult parse(int argc, char* argv[])
 
 		auto result = options.parse(argc, argv);
 
+		// -h, --help
 		if (result.count("help"))
 		{
 			std::cout << options.help({ "General", "Offset", "Additional" }) << std::endl;
 			exit(0);
 		}
-
+		
+		// -v, --version
 		if (result.count("version"))
 		{
 			std::cout << "Twilight Editor (" << OS_STRING << ") v" << TE_VERSION_MAIN << "." << TE_VERSION_SUB << " (C) AECX 2019" << std::endl;
@@ -136,8 +141,6 @@ cxxopts::ParseResult parse(int argc, char* argv[])
 			TwilightEditor::Settings.HEX = result["hex"].as<bool>();
 		}
 
-		TwilightEditor::Settings.FIX = result["fix"].as<bool>();
-
 		if (result.count("offset"))
 		{
 			TwilightEditor::Settings.OFFSET = result["offset"].as<uint16_t>();
@@ -159,10 +162,10 @@ cxxopts::ParseResult parse(int argc, char* argv[])
 		// --type
 		if (result.count("type"))
 		{
-			TwilightEditor::Settings.TYPE = (result["type"].as<std::string>() == "int" ? TwilightEditor::offsetType::TPINT : result["type"].as<std::string>() == "flg" ? TwilightEditor::offsetType::TPFLAG : result["type"].as<std::string>() == "uflg" ? TwilightEditor::offsetType::TPUFLAG : TwilightEditor::offsetType::TPSTRING);
+			TwilightEditor::Settings.TYPE = (result["type"].as<std::string>() == "uint" ? TwilightEditor::offsetType::TPUINT : result["type"].as<std::string>() == "sint" ? TwilightEditor::offsetType::TPSINT : result["type"].as<std::string>() == "flg" ? TwilightEditor::offsetType::TPFLAG : result["type"].as<std::string>() == "uflg" ? TwilightEditor::offsetType::TPUFLAG : TwilightEditor::offsetType::TPSTRING);
 			if (TwilightEditor::Settings.TYPE == TwilightEditor::offsetType::TPFLAG || TwilightEditor::Settings.TYPE == TwilightEditor::offsetType::TPUFLAG)
 			{
-				fastPrint("Changed size to 1 since you're supplying a flag!");
+				fastPrint("Forced size to 1 since you're supplying a flag!");
 				TwilightEditor::Settings.LENGTH = 1;
 			}
 		}
@@ -173,7 +176,7 @@ cxxopts::ParseResult parse(int argc, char* argv[])
 			TwilightEditor::Settings.STR_VALUE = result["value"].as<std::string>();
 		}
 
-		// -v,	--verbose
+		// --verbose
 		TwilightEditor::Settings.VERBOSE = result["verbose"].as<bool>();
 
 		// -f,	--force
@@ -183,42 +186,35 @@ cxxopts::ParseResult parse(int argc, char* argv[])
 	}
 	catch (const cxxopts::OptionException& e)
 	{
-		std::cout << "error parsing options: " << e.what() << std::endl << "Maybe try --help" << std::endl;
+		std::cerr << "error parsing options: " << e.what() << std::endl << "Maybe try --help" << std::endl;
 		exit(1);
 	}
 }
 
 namespace TwilightEditor
 {
-	uint32_t checksum = 0;
-	uint32_t nchecksum = 0;
-
 	FILE* currentFilePtr = nullptr;
-	FILE* outputFile = nullptr;
 
-	std::size_t fileSize = 0;
-	uint16_t questLogSize = 0;
+	// QL Data including checksums
+	uint8_t* questLogData = nullptr;
+
+	uint8_t* inputFileBuf = nullptr;
+	uint8_t* outputFileBuf = nullptr;
+
+	uintmax_t fileSize = 0;
+	uint16_t questLogLength = 0;
 	uint32_t questLogReadOffset = 0;
 
 	std::string get()
 	{
 		try
 		{
-			if ((Settings.OFFSET + questLogReadOffset) + Settings.LENGTH > fileSize)
+			if ((Settings.OFFSET + Settings.LENGTH) > questLogLength)
 			{
-				throw std::runtime_error("offset + length exceeds the filesize");
+				throw std::runtime_error("Read offset + length exceed the QuestLog");
 			}
 
-			if (Settings.OFFSET + Settings.LENGTH > questLogSize)
-			{
-				throw std::runtime_error("offset + length exceeds the QuestLog size");
-			}
-
-			uint8_t* buffer = new uint8_t[Settings.LENGTH];
-			fseek(currentFilePtr, questLogReadOffset + Settings.OFFSET, SEEK_SET);
-			fread(buffer, sizeof(uint8_t), Settings.LENGTH, currentFilePtr);
-
-			return TwilightEditor::Converter::toStr(buffer, Settings.TYPE, Settings.LENGTH, Converter::u8(Settings.STR_VALUE));
+			return Converter::toStr(&questLogData[Settings.OFFSET], Settings.TYPE, Settings.LENGTH, Settings.HEX, Converter::u8(Settings.STR_VALUE));
 		}
 		catch (const std::runtime_error& ex)
 		{
@@ -236,93 +232,75 @@ namespace TwilightEditor
 	{
 		try
 		{
-			// write --value to --offset[--length]
-			// Save into --output
-			
-			// Templates
-			uint16_t t16 = 0;
-			uint32_t t32 = 0;
-
-			// buffer for str
-			char* data = new char[Settings.LENGTH];
-			memset(data, 0, Settings.LENGTH);
-
-			// buffer for single char
-			unsigned* buffer = new unsigned[1];
-
-			std::size_t i = 0;
-			for (i; i < fileSize; i++)
+			if ((Settings.OFFSET + Settings.LENGTH) > questLogLength)
 			{
-				// Loop through entire file
-				if (i == Settings.OFFSET)
-				{
-					// Modify this part
-
-					// TODO convert --value to big endian and write it
-					if (Settings.TYPE == offsetType::TPINT)
-					{
-						switch (Settings.LENGTH)
-						{
-							case 1:
-								// Big endian == little endian, no conversion
-								buffer[0] = Converter::u8(Settings.STR_VALUE);
-								
-								fwrite(buffer, sizeof(uint8_t), 1, outputFile);
-							break;
-
-							case 2:
-								t16 = Converter::bigEndian(Converter::u16(Settings.STR_VALUE));
-
-								fwrite(&t16, sizeof(uint16_t), 1, outputFile);
-							break;
-
-							case 4:
-								t32 = Converter::bigEndian(Converter::u32(Settings.STR_VALUE));
-
-								fwrite(&t32, sizeof(uint32_t), 1, outputFile);
-							break;
-
-							default:
-								throw std::runtime_error("invalid length supplied for type int");
-							break;
-						}
-					} // Integer
-
-					else if (Settings.TYPE == offsetType::TPFLAG || Settings.TYPE == offsetType::TPUFLAG)
-					{
-						unsigned flag = Converter::u8(Settings.STR_VALUE);
-						if (Settings.TYPE == offsetType::TPFLAG)
-						{
-							// Set the flag
-							buffer[0] = fgetc(currentFilePtr) | flag;
-						}
-						else
-						{
-							// Unset the flag
-							buffer[0] = (fgetc(currentFilePtr) & ~flag);
-						}
-						
-						fwrite(buffer, sizeof(char), 1, outputFile);
-					} // Flag
-
-					else
-					{
-						std::strncpy(data, Settings.STR_VALUE.c_str(), Settings.LENGTH);
-
-						fwrite(data, sizeof(char), Settings.LENGTH, outputFile);
-					} // String/Data
-
-					// Continue after the offset + length
-					i += (Settings.LENGTH - 1); // - 1 because at the end of the loop it's ++ agian
-					fseek(currentFilePtr, Settings.LENGTH, SEEK_CUR);
-				}
-				else
-				{
-					// Write next byte to input file
-					buffer[0] = fgetc(currentFilePtr);
-					fwrite(reinterpret_cast<void*>(buffer), sizeof(char), 1, outputFile);
-				}
+				throw std::runtime_error("Read offset + length exceed the QuestLog");
 			}
+
+			// Pointer to where we want to write the Settings.VALUE
+			void* target = &questLogData[Settings.OFFSET];
+
+			// Written data counter
+			int i = Settings.LENGTH;
+
+			switch (Settings.TYPE)
+			{
+				case offsetType::TPUINT:
+					switch (Settings.LENGTH)
+					{
+					case 4:
+						*reinterpret_cast<uint32_t*>(target) = Converter::bigEndian(Converter::u32(Settings.STR_VALUE));
+						break;
+
+					case 2:
+						*reinterpret_cast<uint16_t*>(target) = Converter::bigEndian(Converter::u16(Settings.STR_VALUE));
+						break;
+
+					default:
+						*reinterpret_cast<uint8_t*>(target) = Converter::u8(Settings.STR_VALUE);
+						break;
+					}
+					// Set uInt
+				break;
+
+				case offsetType::TPSINT:
+					switch (Settings.LENGTH)
+					{
+					case 4:
+						*reinterpret_cast<int32_t*>(target) = Converter::bigEndian(Converter::s32(Settings.STR_VALUE));
+						break;
+
+					case 2:
+						*reinterpret_cast<int16_t*>(target) = Converter::bigEndian(Converter::s16(Settings.STR_VALUE));
+						break;
+
+					default:
+						*reinterpret_cast<int8_t*>(target) = Converter::s8(Settings.STR_VALUE);
+						break;
+					}
+					// Set sInt
+				break;
+
+				case offsetType::TPFLAG:
+					Converter::flag(reinterpret_cast<uint8_t*>(target), Settings.STR_VALUE, true);
+					// Set flag
+					break;
+
+				case offsetType::TPUFLAG:
+					Converter::flag(reinterpret_cast<uint8_t*>(target), Settings.STR_VALUE, false);
+					// Unset flag
+					break;
+
+				case offsetType::TPSTRING:
+					// Fill 0
+					memset(target, 0x0, Settings.LENGTH);
+					strncpy(reinterpret_cast<char*>(target), Settings.STR_VALUE.c_str(), Settings.LENGTH);
+
+					// Write string
+					break;
+			}
+
+			std::cout << "Total bytes written: " << i << std::endl;
 		}
 		catch (const std::runtime_error& ex)
 		{
@@ -340,39 +318,25 @@ namespace TwilightEditor
 	{
 		try
 		{
-			if (!fs::exists(Settings.INPUT_FILE))
-			{
-				throw std::runtime_error("input file does not exist");
-			}
-
-			if (Settings.INPUT_FILE == Settings.OUTPUT_FILE)
-			{
-				throw std::runtime_error("currently unsupported. Please enter an output file");
-			}
-
-			fs::path filePath{ Settings.INPUT_FILE };
-
 			currentFilePtr = fopen(Settings.INPUT_FILE.c_str(), "rb");
-			outputFile = fopen(Settings.OUTPUT_FILE.c_str(), "wb");
 
 			if (currentFilePtr == NULL)
 			{
 				throw std::runtime_error("couldn't open input file for read");
 			}
 
-			if (outputFile == NULL)
-			{
-				throw std::runtime_error("couldn't open output file for write");
-			}
+			fseek(currentFilePtr, 0, SEEK_END);
+			fileSize = ftell(currentFilePtr);
 
-			fileSize = static_cast<std::size_t>(fs::file_size(filePath));
-			
+			// Back to 0 now that we know the length
+			fseek(currentFilePtr, 0, SEEK_SET);
+
 			switch (fileSize)
 			{
 				case 0x8040:
 					// GCI/Container
-					fastPrint("Operating in GCI mode");
-					questLogSize = 0xA94;
+					fastPrint("Operating in GCI mode (0xA94)");
+					questLogLength = 0xA94;
 					switch (Settings.QUESTLOG)
 					{
 						case 2:
@@ -383,34 +347,49 @@ namespace TwilightEditor
 							questLogReadOffset = 0x4ADC;
 						break;
 
-						default:
+						case 0:
 							questLogReadOffset = 0x4048;
+						break;
+
+						default:
+							throw std::runtime_error("invalid Quest Log index");
 						break;
 					}
 				break;
 
 				case 0xE00:
 					// WiiU/QuestLog
-					fastPrint("Operating in Wii U mode");
-					questLogSize = 0xE00;
+					fastPrint("Operating in Wii U mode (0xE00)");
+					questLogLength = 0xE00;
 					questLogReadOffset = 0;
 				break;
 
 				default:
 					if (!Settings.FORCE)
 					{
-						std::cout << "File could not be identified, do you want to treat it as a single QuestLog? (y/n)" << std::endl << "Is this a Questlog? ";
-						int result = getchar();
-						if (result != 'Y' && result != 'y')
-						{
-							std::cout << "Exiting application..." << std::endl;
-							exit(1);
-						}
-						questLogSize = static_cast<uint16_t>(fileSize);
+						throw std::runtime_error("File could not be identified as a valid TP save. Use -f,--force to treat it as a QuestLog");
+					}
+					else
+					{
+						fastPrint("Operating in QuestLog mode (QL = FileSize)");
+						questLogLength = fileSize;
 						questLogReadOffset = 0;
 					}
 				break;
 			}
+
+			// Set filebuffers
+			inputFileBuf = new uint8_t[fileSize];
+			outputFileBuf = new uint8_t[fileSize];
+
+
+			fread(inputFileBuf, sizeof(uint8_t), fileSize, currentFilePtr);
+			fclose(currentFilePtr);
+
+			memcpy(outputFileBuf, inputFileBuf, fileSize);
+
+			// Directly edit the output file
+			questLogData = &outputFileBuf[questLogReadOffset];
 		}
 		catch (const std::runtime_error& ex)
 		{
@@ -424,26 +403,75 @@ namespace TwilightEditor
 		}
 	}
 
-	void getChecksums()
+	void saveFile()
 	{
 		try
 		{
-			uint16_t questLogDataLength = questLogSize - 8;
+			currentFilePtr = fopen(Settings.OUTPUT_FILE.c_str(), "wb");
 
-			uint8_t* questLogData = new uint8_t[questLogDataLength];
+			if (currentFilePtr == NULL)
+			{
+				throw std::runtime_error("couldn't open input file for write");
+			}
 
-			printf("read: %x\n", questLogReadOffset);
-			printf("len: %x\n", questLogDataLength);
+			fseek(currentFilePtr, 0, SEEK_SET);
+
+			// Questlogdata is a pointer to outputfilebuf so it should already be contained in here
+			fwrite(outputFileBuf, sizeof(uint8_t), fileSize, currentFilePtr);
 			
-			// Set read position to current questlog
-			fseek(currentFilePtr, questLogReadOffset, SEEK_SET);
+			fclose(currentFilePtr);
 
-			// Read the entire questlog (- checksums)
-			fread(questLogData, sizeof(uint8_t), questLogDataLength, currentFilePtr);
+			std::cout << "Contents written to: '" << Settings.OUTPUT_FILE << "'" << std::endl;
+		}
+		catch (const std::runtime_error &ex)
+		{
+			std::cerr << "error saving file " << Settings.OUTPUT_FILE << ": " << ex.what() << std::endl;
+			exit(1);
+		}
+		catch (...)
+		{
+			std::cerr << "unknown error saving file " << Settings.OUTPUT_FILE << std::endl;
+			exit(1);
+		}
+	}
 
-			checkSum(questLogData, questLogDataLength, &checksum, &nchecksum);
+	// Reads current active checksums (no calculation)
+	void readChecksums()
+	{
+		try
+		{
+			std::cout << "Reading checksums:" << std::endl;
+			std::cout << "+Checksum: " << Converter::toStr(&questLogData[questLogLength - 8], TwilightEditor::offsetType::TPSINT, 4, true) << std::endl;
+			std::cout << "-Checksum: " << Converter::toStr(&questLogData[questLogLength - 4], TwilightEditor::offsetType::TPSINT, 4, true) << std::endl;
+		}
+		catch (const std::runtime_error & ex)
+		{
+			std::cerr << "error reading checksums " << Settings.INPUT_FILE << " QuestLog: " << Settings.QUESTLOG << ": " << ex.what() << std::endl;
+			exit(1);
+		}
+		catch (...)
+		{
+			std::cerr << "unknown error while reading checksums " << Settings.INPUT_FILE << " QuestLog: " << Settings.QUESTLOG << std::endl;
+			exit(1);
+		}
+	}
 
-			printf("Calculated: %08x %08x\n", checksum, nchecksum);
+	void setChecksums()
+	{
+		try
+		{
+			uint32_t* csum = reinterpret_cast<uint32_t*>(&questLogData[questLogLength - 8]);
+			uint32_t* nsum = reinterpret_cast<uint32_t*>(&questLogData[questLogLength - 4]);
+
+			checkSum(questLogData, questLogLength - 8, csum, nsum);
+
+			// Update endianess
+			*csum = Converter::bigEndian(*csum);
+			*nsum = Converter::bigEndian(*nsum);
+
+			std::cout << "New checksums:" << std::endl;
+			std::cout << "+Checksum: " << Converter::toStr(&questLogData[questLogLength - 8], TwilightEditor::offsetType::TPSINT, 4, true) << std::endl;
+			std::cout << "-Checksum: " << Converter::toStr(&questLogData[questLogLength - 4], TwilightEditor::offsetType::TPSINT, 4, true) << std::endl;
 		}
 		catch (...)
 		{
