@@ -252,10 +252,10 @@ namespace TwilightEditor
 					switch (length)
 					{
 						case 1:
-							value = std::to_string(data[0]);
+							value = std::to_string(*data);
 							if (hex)
 							{
-								ss << std::hex << static_cast<unsigned>(data[0]);
+								ss << std::hex << static_cast<unsigned>(*data);
 								value = ss.str();
 							}
 						break;
@@ -291,10 +291,10 @@ namespace TwilightEditor
 					switch (length)
 					{
 					case 1:
-						value = std::to_string(*reinterpret_cast<int8_t*>(data[0]));
+						value = std::to_string(*reinterpret_cast<int8_t*>(data));
 						if (hex)
 						{
-							ss << std::hex << *reinterpret_cast<int8_t*>(data[0]);
+							ss << std::hex << *reinterpret_cast<int8_t*>(data);
 							value = ss.str();
 						}
 						break;

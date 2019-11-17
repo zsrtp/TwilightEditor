@@ -3,6 +3,7 @@
 
 int main(int argc, char* argv[])
 {
+	/*
 	auto result = parse(argc, argv);
 	auto arguments = result.arguments();
 
@@ -23,14 +24,15 @@ int main(int argc, char* argv[])
 		std::cout << "Verbose: " << TwilightEditor::Settings.VERBOSE << std::endl;
 		std::cout << "Force: " << TwilightEditor::Settings.FORCE << std::endl;
 	}
-
-	/*
-	TwilightEditor::Settings.INPUT_FILE = "ql.tp";
+	*/
+	
+	TwilightEditor::Settings.INPUT_FILE = "new.file";
 	TwilightEditor::Settings.OUTPUT_FILE = "new.tp";
 	TwilightEditor::Settings.FORCE = true;
-	TwilightEditor::Settings.LENGTH = 4;
+	TwilightEditor::Settings.LENGTH = 1;
 	TwilightEditor::Settings.OFFSET = 0x0A;
-	TwilightEditor::Settings.TYPE = TwilightEditor::offsetType::TPUINT;*/
+	TwilightEditor::Settings.TYPE = TwilightEditor::offsetType::TPUINT;
+	TwilightEditor::Settings.MODE = TwilightEditor::mode::GET;
 
 	fastPrint("initializing file...");
 
